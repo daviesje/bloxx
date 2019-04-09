@@ -13,18 +13,21 @@ init.init_game()
 def game_loop():
     ncrashes = 0
     quitting = False
+    crashed = False
 
     while not quitting:
+        if not crashed:
+            objects.box_idx = list(range(levels.levelarr[levels.cur_level-1].nbox))
+            objects.switch_idx = list(range(levels.levelarr[levels.cur_level-1].nswitch))
+            objects.altbox_idx = []
+
         level_win = False
         jumping = False
         fallen = False
         crashed = False
         x = objects.x_init
         y = objects.player_floor_1 
-        objects.box_idx = list(range(levels.levelarr[levels.cur_level-1].nbox))
-        objects.switch_idx = list(range(levels.levelarr[levels.cur_level-1].nswitch))
-        objects.altbox_idx = []
-
+        
         x_vel = xspeed
         y_vel = 0
         angle = 0

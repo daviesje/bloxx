@@ -94,8 +94,23 @@ level4.add_box(640,32,0)
 level4.add_box(640,64,0)
 level4.add_box(640,96,0)
 level4.add_switch(320,64,0,[5,6],[])
+level4.add_box(1024,0,0)
+level4.add_box(864,0,1)
+level4.add_box(864,32,1)
+level4.add_box(864,64,1)
+level4.add_box(896,32,1)
+level4.add_box(896,0,1)
+level4.add_box(928,0,1)
+level4.add_switch(640,96,1,[17,18],[0,1])
+level4.add_box(416,0,1)
+level4.add_box(384,0,1)
+level4.add_box(352,0,1)
+level4.add_box(320,0,1)
+level4.add_box(288,0,1)
+level4.add_altbox(160,0,1)
+level4.add_altbox(192,0,1)
 
-levelarr = [level4,level2,level3,level4]
+levelarr = [level1,level2,level3,level4]
 num_levels = len(levelarr)
 
 def next_level():
