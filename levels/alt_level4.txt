@@ -1,0 +1,23 @@
+box	160	0	0
+box	192	0	0
+box	224	0	0
+box	640	0	0
+box	640	32	0
+box	640	64	0
+box	640	96	0
+switch	320	64	0	5,6	
+box	1024	0	0
+box	864	0	1
+box	864	32	1
+box	864	64	1
+box	896	32	1
+box	896	0	1
+box	928	0	1
+switch	640	96	1	17,18	0,1
+box	416	0	1
+box	384	0	1
+box	352	0	1
+box	320	0	1
+box	288	0	1
+altbox	160	0	1
+altbox	192	0	1
