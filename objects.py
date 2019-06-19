@@ -4,7 +4,7 @@ Contains classes and functions for drawing and manipulating objects
 '''
 import pygame
 import init
-import levels
+from NeuralNet import network
 import numpy as np
 
 x_init = init.display_width*0.01
@@ -13,7 +13,7 @@ y_init = init.display_height*0.5
 player_base = 16
 player_height = 16
 floor_height = 16
-gap_width = 64
+gap_width = 32
 switch_width = 32
 switch_height = 32
 box_idx = []
@@ -25,142 +25,118 @@ player_floor_2 = init.display_height - 2*floor_height
 
 def draw_player(x,y,angle,image):
     #print(f'drawing payer at ({x},{y},{angle})')
-    init.gameDisplay.blit(pygame.transform.rotate(init.Imlist.images[image],angle),(x,y))
+    return init.gameDisplay.blit(pygame.transform.rotate(init.Imlist.images[image],angle),(x,y))
     
 def draw_floors():
     init.gameDisplay.blit(init.Imlist.images[1],(-gap_width,y_init))
     init.gameDisplay.blit(init.Imlist.images[1],(0,init.display_height - floor_height))
     
-def draw_level(level):
-    lev = levels.levelarr[level-1]
-
-    for box in box_idx:
-        init.gameDisplay.blit(init.Imlist.images[lev.boxim[box]]
-                              ,(lev.boxx[box]
-                              ,lev.boxfloor[box]*player_floor_2
-                              + (1-lev.boxfloor[box])*player_floor_1
-                              - lev.boxy[box] - floor_height))
-        
-    for box in altbox_idx:
-        init.gameDisplay.blit(init.Imlist.images[lev.altboxim[box]]
-                              ,(lev.altboxx[box]
-                              ,lev.altboxfloor[box]*player_floor_2
-                              + (1-lev.altboxfloor[box])*player_floor_1
-                              - lev.altboxy[box] - floor_height))
-    for switch in switch_idx:
-        init.gameDisplay.blit(init.Imlist.images[3]
-                              ,(lev.switchx[switch]
-                              ,lev.switchfloor[switch]*player_floor_2
-                              + (1-lev.switchfloor[switch])*player_floor_1
-                              - lev.switchy[switch] - floor_height))
+def draw_level(lev,rects):
+    for obs,x,f in zip(lev.obsarr,lev.obsx,lev.obsfloor):
+        for w in range(obs.width):
+            for h in range(5):
+                if h < obs.height:
+                    box_x = int(32*(x + w))
+                    box_y = int(f*player_floor_2
+                              + (1-f)*player_floor_1
+                              - h*32 - floor_height)
+                    #print(box_x,box_y)
+                    rects.append(init.gameDisplay.blit(init.Imlist.images[2],(box_x,box_y)))
+                elif h >= obs.ceil:
+                    box_x = int(32*(x + w - (2*f-1)*obs.offset))
+                    box_y = int(f*player_floor_2
+                              + (1-f)*player_floor_1
+                              - h*32 - floor_height)
+                    rects.append(init.gameDisplay.blit(init.Imlist.images[2],(box_x,box_y)))
 
 def draw_net(net):
     screencen = init.display_width/2.
     netcen = int(net.layers/2)
-    nhist = [0]*net.layers
-    num_in_layer = []
-    for n in net.nodeList:
-        nhist[n.layer] += 1
-        num_in_layer.append(nhist[n.layer])
+    nhist,chist,nnode,nconn = network.get_counts(net)
     max_nodes = max(nhist)
 
-    nodex = []
-    nodey = []
-    offset = [0,-4,4,-2,2,0]
-
-    for ii,node in enumerate(net.nodeList):
-        nodex.append(int(screencen + (node.layer - netcen)*64))
-        nodey.append(int(16*num_in_layer[ii]*max_nodes/(nhist[node.layer] + 1)
-        + offset[node.layer]))
-        pygame.draw.circle(init.gameDisplay,(0,0,0),(nodex[ii],nodey[ii]),4)
-    for ii,conn in enumerate(net.connectionList):
-        green = min(max([0,conn.weight])*64,255)
-        red = min(-min([0,conn.weight])*64,255)
-        pygame.draw.line(init.gameDisplay,(red,green,0),(nodex[conn.fromNode.nodeNo],
-                         nodey[conn.fromNode.nodeNo]),(nodex[conn.toNode.nodeNo],
-                         nodey[conn.toNode.nodeNo]),abs(int(2*conn.weight)) + 1)
+    nodex = np.zeros(nnode,dtype=int)
+    nodey = np.zeros(nnode,dtype=int)
+    offset = [0,-8,8,-8,0]
+    for l in range(net.layers):
+        for ii,node in enumerate(net.nodeList[l]):
+            nodex[node.nodeNo] = int(screencen + (node.layer - netcen)*64)
+            nodey[node.nodeNo] = int(16*(ii+1)*max_nodes/(nhist[l]+1)
+            + offset[node.layer])
+            
+    for l in range(net.layers):
+        for ii,conn in enumerate(net.connectionList[l]):
+            red = 223 - min(max([0,conn.weight])*96,223)
+            blue = 223 - min(abs(conn.weight)*96,223)
+            green = 223 - min(-min([0,conn.weight])*96,223)
+            pygame.draw.line(init.gameDisplay,(red,green,blue)
+                            ,(nodex[conn.fromNode.nodeNo]
+                            ,nodey[conn.fromNode.nodeNo])
+                            ,(nodex[conn.toNode.nodeNo]
+                            ,nodey[conn.toNode.nodeNo])
+                            ,2)
+                            
+    for ii in range(len(nodex)):
+        pygame.draw.circle(init.gameDisplay,(0,0,0),(nodex[ii],nodey[ii]),5)
         
-def test_collision(x,y,lnum):
-    global box_idx
-    lev = levels.levelarr[lnum-1]
-    for box in box_idx:
-        box_y = lev.boxfloor[box]*player_floor_2
-        box_y += (1-lev.boxfloor[box])*player_floor_1
-        box_y += - lev.boxy[box] - floor_height
-        x_lower = lev.boxx[box] - player_base
-        x_upper = lev.boxx[box] + lev.boxw[box]
-        y_lower = box_y + player_height
-        y_upper = box_y - lev.boxh[box]
+def test_collision(x,y,f,lev):
+    player_y = y - (1-f)*player_floor_1
+    player_y -= f*player_floor_2
+    
+    for ii,box in enumerate(lev.obsarr):
+        if lev.obsfloor[ii] != f:
+            continue
+        x_lower = lev.obsx[ii]*32 - player_base
+        x_upper = (lev.obsx[ii] + box.width)*32
+        y_lower = -box.height*32
+        y_upper = -box.ceil*32 + player_height
+        x_c = x + (2*f-1)*box.offset*32
         
-        if x>=x_lower and x<=x_upper and y<=y_lower and y>=y_upper:
+        if x>x_lower and x<x_upper and player_y>y_lower:
+            #print(x,y,player_y,x_lower,x_upper,y_lower,y_upper)
+            return True
+        if x_c>x_lower and x_c<x_upper and player_y<y_upper:
+            #print(x,y,player_y,x_lower,x_upper,y_lower,y_upper)
             return True
 
-def test_altcollision(x,y,lnum):
-    global altbox_idx, switch_idx
-    for box in altbox_idx:
-        box_y = lev.altboxfloor[box]*player_floor_2
-        box_y += (1-lev.altboxfloor[box])*player_floor_1
-        box_y += - lev.altboxy[box] - floor_height
-        x_lower = lev.altboxx[box] - player_base
-        x_upper = lev.altboxx[box] + lev.altboxw[box]
-        y_lower = box_y + player_height
-        y_upper = box_y - lev.altboxh[box]
-        
-        if x>=x_lower and x<=x_upper and y<=y_lower and y>=y_upper:
-            return True
-
-    for switch in switch_idx:
-        switch_y = lev.switchfloor[switch]*player_floor_2
-        switch_y += (1-lev.switchfloor[switch])*player_floor_1
-        switch_y += - lev.switchy[switch] - floor_height
-        x_lower = lev.switchx[switch] - player_base
-        x_upper = lev.switchx[switch] + switch_width
-        y_lower = switch_y + player_height
-        y_upper = switch_y - switch_width
-        
-        if x>=x_lower and x<=x_upper and y<=y_lower and y>=y_upper:
-            for dd in lev.switchdel[switch]:
-                box_idx.remove(dd)
-            for aa in lev.switchadd[switch]:
-                altbox_idx.append(aa)
-            switch_idx.remove(switch)
-                
-
-    return False
-
-#TODO: SWITCHES / ALTBOXES
-def look(x,y,f,lnum):
+def look(x,y,f,lev):
     global box_idx
-    lev = levels.levelarr[lnum-1]
-    xdist = np.array(lev.boxx)
-    floor = np.array(lev.boxfloor)
+    xdist = np.array(lev.obsx)*32
+    boxes = np.array(lev.obsarr)
+    width = np.array([obs.width for obs in boxes])
+    floor = np.array(lev.obsfloor)
     xdist = xdist - x
     #bottom floor goes backwards
     if f == 1:
         xdist = -xdist
-    sel = np.logical_and(xdist>0,floor==f)
     #get rid of wrong floor and past boxes
+    sel = xdist > -(player_base + width*32)
+    sel = np.logical_and(sel,floor==f)
+    boxes = boxes[sel]
     xdist = xdist[sel]
-    ydist = np.array(lev.boxy)[sel]
+    
     #order by x distance then y distance ()
-    idx = np.argsort(xdist + ydist/1200)
-    #xlen = np.array(lev.boxw)
-    #ylen = np.array(lev.boxh)
+    idx = np.argsort(xdist)[:2]
+    xdist = xdist[idx]/32
+    boxes = boxes[idx]
+
     bias = 1
-    l1,l2,l3,l4,l5,l6,l7,l8,l9,la = 100,0,0,0,100,0,100,0,100,0
+    l1,l2,l3,l4,l5,l6 = 0,0,0,0,0,0
     if len(idx) >= 1:
-        l1 = xdist[idx[0]]/32                   #x dist to next box
-        l2 = ydist[idx[0]]/32                #y dist to next box
-        #l3 = xlen[idx[0]]/32                #next box width
-        #l4 = ylen[idx[0]]/32                #next box height
+        height = boxes[0].height
+        ceil = boxes[0].ceil
+        width = boxes[0].width
+        offset = boxes[0].offset
+        l1 = max(2 - xdist[0]/5,0)  #x dist to next obstacle
+        l2 = 2*width/5                #width of next obstacle
+        l3 = 2*height/5               #height of next obstacle
+        l4 = max(2 - 2*ceil/5,0)      #ceiling of next obstacle
+        l5 = 2*offset/5              #relative x position of gap
         if len(idx) >= 2:
-            l5 = (xdist[idx[1]]-xdist[idx[0]])/32  #x gap between 1 and 2
-            l6 = (ydist[idx[1]]-ydist[idx[0]])/32  #y gap between 1 and 2
-            if len(idx) >= 3:
-                l7 = (xdist[idx[2]]-xdist[idx[1]])/32  #x gap between 2 and 3
-                l8 = (ydist[idx[2]]-ydist[idx[1]])/32  #x gap between 2 and 3
-                if len(idx) >=4:
-                    l9 = (xdist[idx[3]]-xdist[idx[2]])/32  #etc
-                    la = (ydist[idx[3]]-ydist[idx[2]])/32
-                    
-    return [l1,l2,l5,l6,l7,l8,l9,la,bias]
+            xgap = xdist[1] - (xdist[0] + width)
+            l6 = max(2 - xgap/5,0)    #gap between next 2 obs
+            #l6 = width[1]              #width of 2nd
+            #l7 = height[1]              #height of 2nd
+            #l8 = ceil[1]              #ceil of 2nd
+    return [l1,l2,l3,l4,l5,l6,bias]
+

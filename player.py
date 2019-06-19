@@ -12,6 +12,7 @@ xspeed = 5
 class Player():
     def __init__(self):
         self.net = network.Network()
+        self.net.fresh_start()
         self.net.mutate()
         self.score = 0
         self.jumping = False

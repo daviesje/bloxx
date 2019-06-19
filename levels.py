@@ -1,42 +1,40 @@
 # -*- coding: utf-8 -*-
 import pygame
 import sys
-from numpy.random import randint
+from numpy.random import randint,choice
 
-cur_level = 1
+cur_level = None
+cur_level_n = 0
 
+GRID_SIZE = 32 #cell size in pixels
 box_width = 32
 box_height = 32
 
 class level():
     def __init__(self):
-        self.nbox = 0
-        self.boxx = []
-        self.boxy = []
-        self.boxw = []
-        self.boxh = []
+        self.nobs = 0
+        self.obsx = []
+        self.obsarr = []
         self.boxim = []
-        self.boxfloor = []
+        self.obsfloor = []
+    def add_obstacle(self,obs,x,floor):
+        self.nobs = self.nobs + 1
+        self.obsx.append(x)
+        self.obsarr.append(obs)
+        self.boxim.append(2)
+        #TODO: image dimensions for tiling (when you draw more)
+        self.obsfloor.append(floor)
+    
+#future stuff, deprecated
+class alt_level():
+    def __init__(self):
         self.altboxx = []
         self.altboxy = []
         self.altboxw = []
         self.altboxh = []
         self.altboxim = []
+        self.altboxc = []
         self.altboxfloor = []
-        self.nswitch = 0
-        self.switchx = []
-        self.switchy = []
-        self.switchfloor = []
-        self.switchdel = []
-        self.switchadd = []
-    def add_box(self,x,y,floor):
-        self.nbox = self.nbox + 1
-        self.boxx.append(x*32.)
-        self.boxy.append(y*32.)
-        self.boxw.append(32)
-        self.boxh.append(32)
-        self.boxim.append(2)
-        self.boxfloor.append(floor)
     def add_switch(self,x,y,floor,boxdel,boxadd):
         self.nswitch = self.nswitch + 1
         self.switchx.append(x)
@@ -52,12 +50,43 @@ class level():
         self.altboxim.append(2)
         self.altboxfloor.append(floor)
 
+class Obstacle():
+    def __init__(self,w,h,c,o,sb,sa,d):
+        self.width = w
+        self.height = h
+        self.ceil = c
+        self.offset = o
+        self.spacebefore = sb
+        self.spaceafter = sa
+        self.diff = d
+
+#defining types of obstacle here
+smallJump = Obstacle(1,1,5,0,1,1,0)
+twoJump = Obstacle(1,2,5,0,1,1,0)
+box = Obstacle(2,2,5,0,2,2,0)
+noJump = Obstacle(1,0,1,0,1,1,0)
+highJump = Obstacle(1,3,5,0,2,2,0)
+longJump = Obstacle(3,1,5,0,1,1,0)
+biggun_h = Obstacle(3,2,5,0,2,2,2)
+biggun_v = Obstacle(2,3,5,0,2,2,2)
+earlyJump_1 = Obstacle(1,1,4,3,4,2,4)
+lateJump_1 = Obstacle(1,1,4,-3,2,4,4)
+earlyJump_2 = Obstacle(1,2,3,2,4,2,6)
+lateJump_2 = Obstacle(1,2,3,-2,2,4,6)
+gap1 = Obstacle(1,1,4,0,4,1,6)
+gap2 = Obstacle(1,1,4,0,1,4,6)
+tunnel = Obstacle(5,0,1,0,1,1,6)
+lateJump_3 = Obstacle(3,2,2,-5,2,4,8)
+earlyJump_3 = Obstacle(3,2,2,5,2,4,8)
+obslist = [smallJump,noJump,highJump,longJump,box
+           ,biggun_h,biggun_v,earlyJump_1,lateJump_1
+           ,earlyJump_2,lateJump_2,gap1,gap2,tunnel
+           ,lateJump_3,earlyJump_3]
+
+
 level1 = level()
-level2 = level()
-level3 = level()
-level4 = level()
-level5 = level()
-levelarr = [level1,level2,level3,level4,level5]
+#levelarr = [level1]
+levelarr = []
 num_levels = len(levelarr)
 
 for i,lev in enumerate(levelarr):
@@ -68,67 +97,74 @@ for i,lev in enumerate(levelarr):
             linearr = line.split('\t')
             linearr[1] = int(linearr[1])
             linearr[2] = int(linearr[2])
-            linearr[3] = int(linearr[3])
-            if linearr[0] == 'box':
-                lev.add_box(linearr[1],linearr[2],linearr[3])
-            if linearr[0] == 'switch':
-                linearr[4] = linearr[4].split(',')
-                if linearr[4] == ['']:
-                    linearr[4] = []
-                else:
-                    linearr[4] = [int(ii) for ii in linearr[4]]
-                linearr[5] = linearr[5].split(',')
-                if linearr[5] == ['']:
-                    linearr[5] = []
-                else:
-                    linearr[5] = [int(ii) for ii in linearr[5]]
-                lev.add_switch(linearr[1],linearr[2],linearr[3],linearr[4],linearr[5])
-            if linearr[0] == 'altbox':
-                lev.add_altbox(linearr[1],linearr[2],linearr[3])
-                
-def generate_level(lnum):
-    rnum = lnum - num_levels
-    lev = level()
-    min_jump = min(rnum + 2,8)
-    max_jump = min(rnum + 5,8)
-    min_dist = max(10 - rnum, 4)
-    last_x = 0
-    last_w = 0
-    last_h = 0
-    last_c = 0
-    
-    n_jump = randint(min_jump,max_jump+1)
-    for ii in range(n_jump):
-        #set x_dist
-        x = last_x + last_w + randint(min_dist,10)
-        w = randint(1,4)
-        h = randint(1,5-w)
-        c = randint(h+2,7)
+            if linearr[0] == 'smalljump':
+                lev.add_obstacle(smallJump,linearr[1],linearr[2])
+            if linearr[0] == 'nojump':
+                lev.add_obstacle(noJump,linearr[1],linearr[2])
+            if linearr[0] == 'highjump':
+                lev.add_obstacle(highJump,linearr[1],linearr[2])
+            if linearr[0] == 'longjump':
+                lev.add_obstacle(longJump,linearr[1],linearr[2])
+            if linearr[0] == 'earlyjump':
+                lev.add_obstacle(earlyJump,linearr[1],linearr[2])
+            if linearr[0] == 'latejump':
+                lev.add_obstacle(lateJump,linearr[1],linearr[2])
 
-        lev.add_box(0,h-1,0)
-        lev.add_box(w,h-1,0)
-        lev.add_box(0,c,0)
-        lev.add_box(w,c,0)
- 
-    for ii in range(n_jump):
-        #set x_dist
-        x = last_x + last_w + randint(min_dist,10)
-        w = randint(1,4)
-        h = randint(1,5-w)
-        c = randint(h+2,7)
-        
-        lev.add_box(0,h-1,1)
-        lev.add_box(w,h-1,1)
-        lev.add_box(0,c,1)
-        lev.add_box(w,c,1)
-        
+def generate_level(lnum):
+    global obslist
+    diff = lnum
+    lev = level()
+
+    #generate first floor
+    space = 0
+    last_x = 5
+    last_w = 0
+    min_edge = 0
+    while min_edge <= 35:
+        while True:
+            obs = choice(obslist)
+            spacebuf = obs.spacebefore + space            
+            buffer = randint(0,3) + max(8-diff,0)
+            obs_x = last_x + 1 + spacebuf + buffer + last_w
+            obs_edge = obs_x + obs.width
+            if obs.diff <= diff and obs_edge <= 35:
+                break
+        lev.add_obstacle(obs,obs_x,0)
+        last_x = obs_x
+        last_w = obs.width
+        space = obs.spaceafter
+        #if the last space was short, add a little more space to the next one
+        if spacebuf + buffer <= 4:
+            space += 4
+        min_edge = last_x + last_w + space + 4 + max(8-diff,0)    
+        #4 in min edge is min_space (2) + 1(const) + min_w(1)
+
+    #generate second floor
+    space = 0
+    last_x = 32
+    last_w = 0
+    #care less about spacing here, objects off screen are A.O.K
+    while last_x - space > 2:
+        while True:
+            obs = choice(obslist)
+            spacebuf = obs.spacebefore + space
+            #TODO: think of x~2 restrictions
+            if obs.diff <= diff:
+                break
+        buffer = randint(0,3) + max(8-diff,0)
+        obs_x = last_x - 1 - spacebuf - buffer - obs.width
+        lev.add_obstacle(obs,obs_x,1)
+        last_x = obs_x
+        space = obs.spaceafter
+
     return lev
 
 def next_level():
-    global cur_level
-    cur_level += 1
+    global cur_level, cur_level_n
+    cur_level_n += 1
     #print(f'next level = {cur_level} + 1 out of {num_levels}')
-    if cur_level > num_levels:
+    if cur_level_n >= num_levels:
+        cur_level = generate_level(cur_level_n)
         return True
     else:
         return False

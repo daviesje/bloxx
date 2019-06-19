@@ -12,13 +12,10 @@ def load_net(fname):
     conn_arr = np.loadtxt(fname+'_c.txt',delimiter='\t')
     node_arr = np.loadtxt(fname+'_n.txt',delimiter='\t').astype(int)
     net = Network()
-    net.nodeList = []
-    net.connectionList = []
     for row in node_arr:
         net.add_node(row[1])
     for row in conn_arr:
         net.add_connection(net.nodeList[int(row[1])],net.nodeList[int(row[2])],row[0])
-    net.layers = (node_arr[:,1]).max() + 1    
     return net
 
 class Connection():
@@ -43,29 +40,29 @@ class Node():
         
 class Network():
     def __init__(self):
-        self.nodeList = []
-        self.connectionList = []
-        self.layers = 2
+        self.nodeList = [[],[],[],[],[]]
+        self.connectionList = [[],[],[],[],[]]
+        self.layers = 5
+        self.width = 5
+        self.noden = 0
+    def fresh_start(self):
+        self.__init__
         self.add_node(layer=0) #x distance to next object
-        self.add_node(layer=0) #y distance to next object
-        #self.add_node(layer=0) #x width of next object
-        #self.add_node(layer=0) #y width of next object
-        self.add_node(layer=0) #x gap between next 2 objects
-        self.add_node(layer=0) #y gap between next 2 objects
-        self.add_node(layer=0) #x gap between next 3 objects
-        self.add_node(layer=0) #y gap between next 3 objects
-        self.add_node(layer=0) #x gap between next 4 objects
-        self.add_node(layer=0) #y gap between next 4 objects
+        self.add_node(layer=0) #width of to next object
+        self.add_node(layer=0) #height of next object
+        self.add_node(layer=0) #ceiling of next object
+        self.add_node(layer=0) #ceil offset of next object
+        self.add_node(layer=0) #x gap between next 2 object
         self.looknodes = self.add_node(layer=0).nodeNo #bias
-        self.add_node(layer=1) #output node
-        self.add_connection(self.nodeList[self.looknodes],self.nodeList[self.looknodes+1],1)
-        #self.add_connection(self.nodeList[0],self.nodeList[self.looknodes+1],-1)
+        self.add_node(layer=4) #output node
+        self.add_connection(self.nodeList[0][self.looknodes]
+                            ,self.nodeList[4][0],0)
     def add_node(self,layer):
-        n = len(self.nodeList) 
         newnode = Node()
-        newnode.nodeNo = n
+        newnode.nodeNo = self.noden
         newnode.layer = layer
-        self.nodeList.append(newnode)
+        self.nodeList[layer].append(newnode)
+        self.noden += 1
         return newnode
     def add_connection(self,fromnode,tonode,weight):
         assert fromnode.layer < tonode.layer
@@ -76,125 +73,143 @@ class Network():
         newcon.layer = tonode.layer
         newcon.weight = weight
         newcon.connectionno = n
-        self.connectionList.append(newcon)
+        self.connectionList[newcon.layer].append(newcon)
         return newcon
     def propogate(self,sights):
         self.reset_network()
-        for i,lnode in enumerate(self.nodeList[:self.looknodes+1]):
-            #print(i,sights)
+        for i,lnode in enumerate(self.nodeList[0]):
             lnode.output = sights[i]
+        #Don't need to engage layer 0 since sights are outputs
         for layer in range(1,self.layers):
-            for c in self.connectionList:
-                if c.layer == layer:
-                    c.engage()
-                    #print(f'connection {c.connectionno} engaged')
-            for n in self.nodeList:
-                if n.layer == layer:
-                    n.engage()
-                    #print(f'node {c.connectionno} engaged, in: {n.input} out: {n.output}')
-        return self.nodeList[self.looknodes+1].output
+            for c in self.connectionList[layer]:
+                c.engage()
+            for n in self.nodeList[layer]:
+                n.engage()
+        return self.nodeList[self.layers-1][0].output
     def reset_network(self):
-        for n in self.nodeList:
-            n.input = 0
-            n.output = 0
-    def mutate(self,manual=0):
+        for l in range(self.layers):
+            for n in self.nodeList[l]:
+                n.input = 0
+                n.output = 0
+    def mutate(self):
         switch = rand()
-        if manual==1:
-            switch = 0.5
-        elif manual==2:
-            switch = 0.95
-        elif manual==3:
-            switch = 0.999
-        #90% change weight on random connection
+        #90% change weights
         if switch < 0.90:
-            for conn in self.connectionList:
-                rand2 = rand()
-                if rand2 < 0.1:
-                    conn.weight = (2*rand()-1)
-                else:
-                    conn.weight += (randn()*0.1)
+            change_weights(self)
         #9% add connection between random nodes
-        elif switch < 0.98:
-            wgt = 2*rand()-1
-            badnodes = True
-            #check if fully connected
-            if self.fully_connected():
-                print('already fully connected')
-                return -1
-            #check if nodes eligible, continue until found
-            while badnodes:
-                badnodes = False
-                sel1 = randint(len(self.nodeList))
-                sel2 = randint(len(self.nodeList))
-                n1 = self.nodeList[sel1]
-                n2 = self.nodeList[sel2]
-                lr = n1.layer < n2.layer
-                if n1.layer == n2.layer:
-                    badnodes = True
-                    continue
-                for c in self.connectionList:
-                    if c.fromNode == n1 and c.toNode == n2:
-                        badnodes = True
-                        break
-                    elif c.fromNode == n2 and c.toNode == n1:
-                        badnodes = True
-                        break
-            #print(f'adding connection between nodes {sel1}, {n1.layer} and {sel2}, {n2.layer}: weight = {wgt} ')
-            if(lr):
-                self.add_connection(n1,n2,wgt)
-            else:
-                self.add_connection(n2,n1,wgt)
-        #1% add new node by splittting random connection
+        elif switch < 0.99:
+            mutate_connection(self)
+        #1% add new node by splitting random connection
         else:
-            if len(self.connectionList) == 1:
-                #can't I?
-                print('cant split bias-output connection')
-                return
-            tolayer = 1
-            fromlayer = 0
+            mutate_node(self)
 
-            #TODO: FIND A DO/WHILE LOOP
-            sel = randint(1,len(self.connectionList))
-            conn = self.connectionList[sel]
-            tolayer = conn.layer
-            fromlayer = conn.fromNode.layer
+def get_counts(net):
+    nhist = [0]*net.layers
+    chist = [0]*net.layers
+    nconn = 0
+    nnode = 0
+    for l in range(net.layers):
+        nhist[l] = len(net.nodeList[l])
+        chist[l] = len(net.connectionList[l])
+            
+    nconn = sum(chist)
+    nnode = sum(nhist)
+        
+    return nhist,chist,nnode,nconn
 
-            while tolayer == fromlayer + 1 and self.layers == 6:
-                sel = randint(1,len(self.connectionList))
-                conn = self.connectionList[sel]
-                tolayer = conn.layer
-                fromlayer = conn.fromNode.layer
+def fully_connected(net):
+    maxcon = 0
 
-            tonode = conn.toNode
-            fromnode = conn.fromNode
-            wgt = conn.weight
-            #REMOVE CONNECTION
-            self.connectionList.remove(conn)
-            #ADD LAYER IF NEEDED
-            if tolayer == fromlayer + 1:
-                self.layers +=1
-                for c in self.connectionList:
-                    if c.layer >= tolayer:
-                        c.layer +=1
-                for n in self.nodeList:
-                    if n.layer >= tolayer:
-                        n.layer +=1
-                newlayer = tolayer
+    nhist,_,_,nconn = get_counts(net)
+    for l in range(net.layers-1):
+        x = nhist[l]*sum(nhist[l+1:])
+        maxcon = maxcon + x
+        
+    return nconn >= maxcon
+    
+def change_weights(net):
+    for l in range(net.layers):
+        for conn in net.connectionList[l]:
+            rand2 = rand()
+            if rand2 < 0.1:
+                conn.weight = 3*(2*rand()-1)
             else:
-                newlayer = randint(fromlayer+1,tolayer)
-            #ADD NODE
-            #print(f'adding node in connection {sel}, layers {fromlayer,newlayer,tolayer}')
-            newnode = self.add_node(newlayer)
-            #ADD CONNECTIONS
-            self.add_connection(fromnode,newnode,wgt)
-            self.add_connection(newnode,tonode,wgt)
-    def fully_connected(self):
-        nhist = [0]*self.layers
-        maxcon = 0
-        for n in self.nodeList:
-            nhist[n.layer] += 1
-        for n in self.nodeList:
-            l = int(n.layer + 1)
-            for x in nhist[l:]:
-                maxcon = maxcon + x
-        return len(self.connectionList) >= maxcon
+                conn.weight += (randn()*0.1)
+            if conn.weight > 3:
+                conn.weight = 3
+            elif conn.weight < -3:
+                conn.weight = -3
+
+def mutate_connection(net):
+    #check if fully connected
+    if fully_connected(net):
+        change_weights(net)
+        return
+    nhist,_,nnode,_ = get_counts(net)
+    wgt = 2*rand()-1
+    sel1 = randint(0,nnode-1)
+    while sel1 == net.looknodes:
+        sel1 = randint(0,nnode-1)
+    #find fromnode
+    layer = 0
+    buf = sel1
+    while buf >= nhist[layer]:
+        buf -= nhist[layer]
+        layer += 1
+    n1 = net.nodeList[layer][buf]
+
+    #tonode must be in the next layer
+    sel2 = randint(sel1-buf+nhist[layer],nnode)
+    buf = sel2
+    layer = 0
+    while buf >= nhist[layer]:
+        buf -= nhist[layer]
+        layer += 1
+    n2 = net.nodeList[layer][buf]
+        
+    net.add_connection(n1,n2,wgt)
+
+def find_splittable(net):
+    splittable = [[],[],[],[],[]]
+    totals = [0,0,0,0,0]
+    for l in range(net.layers):
+        for idx,c in enumerate(net.connectionList[l]):
+            if c.fromNode.layer < c.layer - 1 and c.fromNode != net.nodeList[0][net.looknodes]:
+                splittable[l].append(idx)
+        totals[l] = len(splittable[l])
+                
+    return splittable,totals,sum(totals)
+    
+def mutate_node(net):  
+    #find valid connections to split
+    sel,nsplit,ntot = find_splittable(net)
+    if ntot == 0:
+        mutate_connection(net)
+        return
+    #select one splittable connection
+    buf = randint(0,ntot)
+    layer = 0
+    while buf >= nsplit[layer]:
+        buf -= nsplit[layer]
+        layer += 1
+    #print(buf,layer,sel,nsplit,ntot)
+    #print(net.connectionList)
+    conn = net.connectionList[layer][sel[layer][buf]]
+           
+    fromnode = conn.fromNode
+    tonode = conn.toNode
+    tolayer = conn.layer
+    fromlayer = conn.fromNode.layer
+
+    wgt = conn.weight
+    #REMOVE CONNECTION
+    net.connectionList[layer].remove(conn)
+
+    newlayer = randint(fromlayer+1,tolayer)
+    #ADD NODE
+    #print(f'adding node in connection {sel}, layers {fromlayer,newlayer,tolayer}')
+    newnode = net.add_node(newlayer)
+    #ADD CONNECTIONS
+    net.add_connection(fromnode,newnode,1)
+    net.add_connection(newnode,tonode,wgt)
+    net.add_connection(net.nodeList[0][net.looknodes],newnode,0)

@@ -12,37 +12,21 @@ from copy import deepcopy
 clock = pygame.time.Clock()
 
 jump_v = -12
-nplayers = 100
-place_human = False
 continue_game = True
-competition = False
 
 init.init_game()
 def game_loop():
     #game layer
-    best_bot = None
-    #startnet = 'saves/best_bot_1873'
-    startnet = None
     quitting = False
-    draw_game = False
-    speed = 128
+    draw_game = True
+    speed = 1
 
     #generate first gen of players
     bot_list = []
     human = []
-    for ii in range(nplayers):
-        bot_list.append(player.Player())
     
-    if startnet is not None:
-        bot_list[len(bot_list) - 1].net = network.load_net(startnet)
-        
-    if competition:
-        bot_list = network.load_net(cnet1,cnet2,cnet3)
+    human = [player.Human()]
 
-    if place_human:
-        human = [player.Human()]
-
-    best_bot = bot_list[len(bot_list) - 1]
     while not quitting:
         ###GENERATION LAYER###
         if len(levels.levelarr) > 0:
@@ -53,7 +37,7 @@ def game_loop():
         levels.cur_level_n = 0
 
         ndead = 0
-        while ndead < len(bot_list + human):
+        while ndead < 1:
             ###LEVEL LAYER###            
             #reset level
             nwin = 0
@@ -61,8 +45,6 @@ def game_loop():
             for bn,tri in enumerate(bot_list + human):
                 if not tri.dead:
                     tri.x_pos = objects.x_init
-                    if competition:
-                        tri.x_pos -= (len(bot_list) - bn)*64
                     tri.y_pos = objects.player_floor_1 
                     tri.jumping = False
                     tri.fallen = False
@@ -74,17 +56,15 @@ def game_loop():
             levelrects = []
             #display bg, floors and net
             init.gameDisplay.fill((255,255,255))
-            objects.draw_net(best_bot.net)
             if draw_game:
                 objects.draw_level(levels.cur_level,levelrects)
                 objects.draw_floors()
             pygame.display.update()
             
-            if place_human:
-                pygame.time.wait(750)
+            pygame.time.wait(750)
 
             activerects = []
-            while ndead + nwin < nplayers + place_human:
+            while ndead + nwin < 1:
                 ###TICK LAYER###
                 prevrects = activerects
                 activerects = [] #active parts to update on screen
@@ -100,7 +80,7 @@ def game_loop():
                         ndead = len(bot_list) + 5
                     
                     if event.type == pygame.KEYDOWN:
-                        if event.key == pygame.K_SPACE and place_human:
+                        if event.key == pygame.K_SPACE:
                             if not human[0].jumping:
                                 human[0].jumping = True
                                 human[0].y_vel = jump_v
@@ -113,20 +93,6 @@ def game_loop():
                             draw_game = not draw_game
                         if event.key == pygame.K_r:
                             give_up = True
-                        if event.key == pygame.K_p:
-                            print(inputs)
-                            print(decision)
-                            print(ndead,nwin)
-                                
-                for bot in bot_list:
-                    #only decide if not in air
-                    if not bot.jumping and not bot.dead:
-                        inputs = objects.look(bot.x_pos,bot.y_pos,bot.fallen
-                                              ,levels.cur_level)
-                        decision = bot.net.propogate(inputs)
-                        if decision > 0:
-                            bot.jumping = True
-                            bot.y_vel = jump_v
 
                 for tri in bot_list + human:
                     ###PLAYER LOOP###
@@ -182,7 +148,7 @@ def game_loop():
                     tri.score += 1
 
                 #END OF TICK LAYER
-                if place_human and human[0].dead and not give_up:
+                if human[0].dead and not give_up:
                     human[0].dead = False
                     ndead -= 1
                     human[0].x_pos = objects.x_init
@@ -197,7 +163,6 @@ def game_loop():
                 if draw_game:
                     objects.draw_level(levels.cur_level,levelrects)
                     objects.draw_floors()
-                    objects.draw_net(best_bot.net)
                     #updaterects = prevrects + activerects
                     pygame.display.update()
 
@@ -209,62 +174,13 @@ def game_loop():
                     levels.next_level()
                 else:
                     quitting = True
-                    ndead = nplayers + 5
+                    ndead = 5
 
         #END OF GEN LAYER, dont mutate if quitting
         if not quitting:
-            scores = np.zeros(nplayers)
-            for ii,tri in enumerate(bot_list):
-                scores[ii] = int(tri.score) + np.random.rand()
-                tri.dead = False
-                tri.score = 0
-                
             #reset human
-            if place_human:
-                human[0].dead = False
-                human[0].score = 0
-    
-            cull_length = int(len(bot_list)/2)
-            idx = np.argsort(scores)
-            buf = []
-            for ii in idx[cull_length:]:
-                buf.append(bot_list[ii])
-                
-            bot_list = buf
-            best_bot = bot_list[len(bot_list)-1]
-
-            print(f'----------{scores[idx[-1]]:.2f}------------')
-            for ii in range(cull_length):
-                idx = ii%len(bot_list)
-                newbot = deepcopy(bot_list[idx])
-                newbot.net.mutate()
-                bot_list.append(newbot)
-            
-    svweights = []
-    svfnodes = []
-    svtnodes = []
-    svnoden = []
-    svnodel = []
-    for l in range(best_bot.net.layers):
-        for conn in best_bot.net.connectionList[l]:
-            svweights.append(conn.weight)
-            svfnodes.append(conn.fromNode.nodeNo)
-            svtnodes.append(conn.toNode.nodeNo)
-    
-        for node in best_bot.net.nodeList[l]:
-            svnodel.append(node.layer)
-            svnoden.append(node.nodeNo)
-    
-    svconn = np.array([svweights,svfnodes,svtnodes])
-    svconn = svconn.T
-    svnodes = np.array([svnoden,svnodel])
-    svnodes = svnodes.T
-    if startnet is not None and False:
-        np.savetxt(startnet+'_c.txt',svconn,delimiter='\t')
-        np.savetxt(startnet+'_n.txt',svnodes,delimiter='\t')
-    else:
-        np.savetxt('./saves/best_bot_new_c.txt',svconn,delimiter='\t')
-        np.savetxt('./saves/best_bot_new_n.txt',svnodes,delimiter='\t')
+            human[0].dead = False
+            human[0].score = 0
 
 game_loop()    
 pygame.quit()
