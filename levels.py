@@ -65,23 +65,29 @@ smallJump = Obstacle(1,1,5,0,1,1,0)
 twoJump = Obstacle(1,2,5,0,1,1,0)
 box = Obstacle(2,2,5,0,2,2,0)
 noJump = Obstacle(1,0,1,0,1,1,0)
-highJump = Obstacle(1,3,5,0,2,2,0)
-longJump = Obstacle(3,1,5,0,1,1,0)
-biggun_h = Obstacle(3,2,5,0,2,2,2)
-biggun_v = Obstacle(2,3,5,0,2,2,2)
-earlyJump_1 = Obstacle(1,1,4,3,4,2,4)
-lateJump_1 = Obstacle(1,1,4,-3,2,4,4)
-earlyJump_2 = Obstacle(1,2,3,2,4,2,6)
-lateJump_2 = Obstacle(1,2,3,-2,2,4,6)
-gap1 = Obstacle(1,1,4,0,4,1,6)
-gap2 = Obstacle(1,1,4,0,1,4,6)
-tunnel = Obstacle(5,0,1,0,1,1,6)
-lateJump_3 = Obstacle(3,2,2,-5,2,4,8)
-earlyJump_3 = Obstacle(3,2,2,5,2,4,8)
-obslist = [smallJump,noJump,highJump,longJump,box
-           ,biggun_h,biggun_v,earlyJump_1,lateJump_1
-           ,earlyJump_2,lateJump_2,gap1,gap2,tunnel
-           ,lateJump_3,earlyJump_3]
+highJump = Obstacle(1,3,5,0,2,2,1)
+longJump = Obstacle(3,1,5,0,1,1,1)
+earlyJump_1 = Obstacle(1,1,4,3,4,2,2)
+lateJump_1 = Obstacle(1,1,4,-3,2,4,2)
+biggun_h = Obstacle(3,2,5,0,2,2,3)
+biggun_v = Obstacle(2,3,5,0,2,2,3)
+earlyJump_2 = Obstacle(1,2,3,3,4,2,4)
+lateJump_2 = Obstacle(1,2,3,-3,2,4,4)
+gap1 = Obstacle(1,1,4,0,2,2,5) #maybe get rid of this
+tunnel = Obstacle(5,0,1,0,1,1,5)
+lateJump_3 = Obstacle(3,2,2,-4,2,4,6) #maybe get rid of this
+earlyJump_3 = Obstacle(3,2,2,4,2,4,6) #maybe get rid of this
+end = Obstacle(2,4,5,0,1,1,10)
+obslist = [smallJump,noJump,box
+           ,highJump,longJump
+           ,earlyJump_1,lateJump_1
+           ,biggun_h,biggun_v
+           ,earlyJump_2,lateJump_2
+           ,tunnel
+           ,lateJump_3,earlyJump_3
+           ,end]
+
+#obslist = [noJump,earlyJump_2,lateJump_2]
 
 
 level1 = level()
@@ -134,9 +140,9 @@ def generate_level(lnum):
         last_w = obs.width
         space = obs.spaceafter
         #if the last space was short, add a little more space to the next one
-        if spacebuf + buffer <= 4:
-            space += 4
-        min_edge = last_x + last_w + space + 4 + max(8-diff,0)    
+        if spacebuf + buffer <= 5:
+            space += 5
+        min_edge = last_x + last_w + space + 4 + max(7-diff,0)    
         #4 in min edge is min_space (2) + 1(const) + min_w(1)
 
     #generate second floor

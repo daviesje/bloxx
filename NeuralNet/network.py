@@ -12,10 +12,18 @@ def load_net(fname):
     conn_arr = np.loadtxt(fname+'_c.txt',delimiter='\t')
     node_arr = np.loadtxt(fname+'_n.txt',delimiter='\t').astype(int)
     net = Network()
+    nodemap = [[],[],[],[],[]]
     for row in node_arr:
+        nodemap[row[1]].append(int(row[0]))
         net.add_node(row[1])
     for row in conn_arr:
-        net.add_connection(net.nodeList[int(row[1])],net.nodeList[int(row[2])],row[0])
+        for l in range(net.layers):
+            for i,n in enumerate(nodemap[l]):
+                if n == row[1]:
+                    fromnode = net.nodeList[l][i]
+                if n == row[2]:
+                    tonode = net.nodeList[l][i]
+        net.add_connection(fromnode,tonode,row[0])
     return net
 
 class Connection():
@@ -45,6 +53,8 @@ class Network():
         self.layers = 5
         self.width = 5
         self.noden = 0
+        self.looknodes = 6 #normal amount
+        self.weights_only = False
     def fresh_start(self):
         self.__init__
         self.add_node(layer=0) #x distance to next object
@@ -54,9 +64,9 @@ class Network():
         self.add_node(layer=0) #ceil offset of next object
         self.add_node(layer=0) #x gap between next 2 object
         self.looknodes = self.add_node(layer=0).nodeNo #bias
-        self.add_node(layer=4) #output node
+        self.add_node(layer=self.layers - 1) #output node jump
         self.add_connection(self.nodeList[0][self.looknodes]
-                            ,self.nodeList[4][0],0)
+                            ,self.nodeList[self.layers - 1][0],0)
     def add_node(self,layer):
         newnode = Node()
         newnode.nodeNo = self.noden
@@ -85,7 +95,9 @@ class Network():
                 c.engage()
             for n in self.nodeList[layer]:
                 n.engage()
-        return self.nodeList[self.layers-1][0].output
+                
+        decision = self.nodeList[self.layers-1][0].output
+        return decision
     def reset_network(self):
         for l in range(self.layers):
             for n in self.nodeList[l]:
@@ -93,6 +105,8 @@ class Network():
                 n.output = 0
     def mutate(self):
         switch = rand()
+        if self.weights_only:
+            switch = 0.1
         #90% change weights
         if switch < 0.90:
             change_weights(self)
@@ -103,6 +117,21 @@ class Network():
         else:
             mutate_node(self)
 
+def full_network():
+    net = Network()
+    net.fresh_start()
+    net.weights_only = True
+    for i in range(1,net.layers-1):
+        for w in range(net.width):
+            net.add_node(layer=i)
+            
+    for l in range(net.layers-1):
+        for fn in net.nodeList[l]:
+            for ft in net.nodeList[l+1]:
+                net.add_connection(fn,ft,0)
+                
+    return net
+            
 def get_counts(net):
     nhist = [0]*net.layers
     chist = [0]*net.layers
@@ -202,10 +231,16 @@ def mutate_node(net):
     fromlayer = conn.fromNode.layer
 
     wgt = conn.weight
-    #REMOVE CONNECTION
-    net.connectionList[layer].remove(conn)
 
     newlayer = randint(fromlayer+1,tolayer)
+    #temporary fix, reject new nodes in large layers
+    if len(net.connectionList[newlayer]) >= net.width:
+        mutate_connection(net)
+        return
+
+    #REMOVE CONNECTION        
+    net.connectionList[layer].remove(conn)
+
     #ADD NODE
     #print(f'adding node in connection {sel}, layers {fromlayer,newlayer,tolayer}')
     newnode = net.add_node(newlayer)

@@ -19,13 +19,24 @@ switch_height = 32
 box_idx = []
 switch_idx = []
 altbox_idx = []
+look_verbose = False
 
-player_floor_1 = y_init - floor_height
-player_floor_2 = init.display_height - 2*floor_height
+player_floor_1 = y_init - player_base
+player_floor_2 = init.display_height - floor_height - player_base
+
+pygame.font.init()
+myfont = pygame.font.SysFont('Arial',24)
 
 def draw_player(x,y,angle,image):
-    #print(f'drawing payer at ({x},{y},{angle})')
     return init.gameDisplay.blit(pygame.transform.rotate(init.Imlist.images[image],angle),(x,y))
+
+def draw_scores(ims,scores,lnum):
+    surf = myfont.render('level '+str(lnum+1),False,(0,0,0))
+    init.gameDisplay.blit(surf,(init.display_width/2,64))
+    for ii in range(len(ims)):
+        init.gameDisplay.blit(pygame.transform.scale2x(init.Imlist.images[ims[ii]]),(64*(1+ii),32))
+        surf = myfont.render(str(scores[ii]),False,(0,0,0))
+        init.gameDisplay.blit(surf,(64*(1+ii),96))
     
 def draw_floors():
     init.gameDisplay.blit(init.Imlist.images[1],(-gap_width,y_init))
@@ -80,8 +91,10 @@ def draw_net(net):
         pygame.draw.circle(init.gameDisplay,(0,0,0),(nodex[ii],nodey[ii]),5)
         
 def test_collision(x,y,f,lev):
-    player_y = y - (1-f)*player_floor_1
-    player_y -= f*player_floor_2
+    if f==0:
+        player_y = y - player_floor_1
+    else:
+        player_y = y - player_floor_2
     
     for ii,box in enumerate(lev.obsarr):
         if lev.obsfloor[ii] != f:
@@ -89,8 +102,11 @@ def test_collision(x,y,f,lev):
         x_lower = lev.obsx[ii]*32 - player_base
         x_upper = (lev.obsx[ii] + box.width)*32
         y_lower = -box.height*32
-        y_upper = -box.ceil*32 + player_height
-        x_c = x + (2*f-1)*box.offset*32
+        y_upper = -box.ceil*32 + player_base #because -player_floor includes base
+        if f == 0:
+            x_c = x - box.offset*32
+        else:
+            x_c = x + box.offset*32
         
         if x>x_lower and x<x_upper and player_y>y_lower:
             #print(x,y,player_y,x_lower,x_upper,y_lower,y_upper)
@@ -105,10 +121,13 @@ def look(x,y,f,lev):
     boxes = np.array(lev.obsarr)
     width = np.array([obs.width for obs in boxes])
     floor = np.array(lev.obsfloor)
-    xdist = xdist - x
-    #bottom floor goes backwards
-    if f == 1:
-        xdist = -xdist
+    
+    #bottom floor goes backwards, also add width because of the l-r
+    #TODO: place objects in reverse on bottom floor
+    if f == 0:
+        xdist = xdist - x - player_base
+    else:
+        xdist = x - xdist - width*32
     #get rid of wrong floor and past boxes
     sel = xdist > -(player_base + width*32)
     sel = np.logical_and(sel,floor==f)
@@ -119,24 +138,32 @@ def look(x,y,f,lev):
     idx = np.argsort(xdist)[:2]
     xdist = xdist[idx]/32
     boxes = boxes[idx]
-
     bias = 1
-    l1,l2,l3,l4,l5,l6 = 0,0,0,0,0,0
+    l1,l2,l3,l4,l5,l6 = -1,-1,-1,1,0,-1
     if len(idx) >= 1:
         height = boxes[0].height
         ceil = boxes[0].ceil
         width = boxes[0].width
         offset = boxes[0].offset
-        l1 = max(2 - xdist[0]/5,0)  #x dist to next obstacle
-        l2 = 2*width/5                #width of next obstacle
-        l3 = 2*height/5               #height of next obstacle
-        l4 = max(2 - 2*ceil/5,0)      #ceiling of next obstacle
-        l5 = 2*offset/5              #relative x position of gap
+        l1 = 1 - xdist[0]/5     #dist to next box, (10,0) to (-1,1)
+        l2 = 2*width/5 - 1      #width of next obstacle, (0,5) to (-1,1)
+        l3 = 2*height/5 - 1     #height of next obstacle, (0,5) to (-1,1)
+        l4 = 2*ceil/5 - 1       #ceiling of next obstacle, (0,5) to (-1,1)
+        l5 = offset/5           #relative x position of gap, (-5,5) to (-1,1)
+
+        if look_verbose:
+            print(xdist[0],l1)
         if len(idx) >= 2:
             xgap = xdist[1] - (xdist[0] + width)
-            l6 = max(2 - xgap/5,0)    #gap between next 2 obs
+            l6 = 1 - xgap/5    #gap between next 2 obs, (10,0) to (-1,1)
             #l6 = width[1]              #width of 2nd
             #l7 = height[1]              #height of 2nd
             #l8 = ceil[1]              #ceil of 2nd
-    return [l1,l2,l3,l4,l5,l6,bias]
+    output = [l1,l2,l3,l4,l5,l6,bias]
+    for ii in range(len(output)):
+        if output[ii] > 1:
+            output[ii] = 1
+        elif output[ii] < -1:
+            output[ii] = -1
+    return output
 

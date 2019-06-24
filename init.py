@@ -23,6 +23,8 @@ def load_ims(iml):
     iml.add_image('./Box.png')
     iml.add_image('./Switch.png')
     iml.add_image('./Tri_Bot_16.png')
+    iml.add_image('./Tri_Cyl_16.png')
+    iml.add_image('./Tri_Mrv_16.png')
     
 def init_game():
     pygame.init()

@@ -25,6 +25,7 @@ class Player():
         self.win = False
         self.dead = False
         self.image = 4
+        self.crashes = 0
         
 class Human():
     def __init__(self):
@@ -39,3 +40,4 @@ class Human():
         self.win = False
         self.dead = False
         self.image = 0
+        self.crashes = 0
